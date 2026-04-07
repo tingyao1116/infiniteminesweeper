@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>無限踩地雷</title>
+  <style>
+    :root {
+      --bg-top: #5bc0f5;
+      --bg-bottom: #1b89db;
+      --panel: rgba(255, 255, 255, 0.16);
+      --panel-border: rgba(255, 255, 255, 0.28);
+      --cell-hidden: #9fd9ff;
+      --cell-hidden-alt: #91d0fb;
+      --cell-open: #f5fbff;
+      --cell-line: rgba(255, 255, 255, 0.8);
+      --cell-shadow: rgba(0, 105, 179, 0.18);
+      --text: #ffffff;
+      --accent: #ff4e94;
+      --danger: #ff6464;
+      --safe: #46d199;
+      --dark: #0c4f82;
+      --panel-text: #07395d;
+      --panel-strong: #052945;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(255,255,255,0.22), transparent 28%),
+        linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+      color: var(--text);
+    }
+
+    body {
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+
+    .app {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .topbar {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .stats {
+      display: grid;
+      gap: 10px;
+      min-width: 150px;
+    }
+
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      text-shadow: none;
+      color: var(--panel-strong);
+      background: rgba(246, 252, 255, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 999px;
+      padding: 8px 10px;
+    }
+
+    .bar {
+      width: 72px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.28);
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 60%;
+      border-radius: inherit;
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .title-wrap {
+      display: grid;
+      gap: 6px;
+      justify-items: center;
+      text-shadow: none;
+      color: var(--panel-strong);
+      background: rgba(246, 252, 255, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 20px;
+      padding: 12px 18px;
+    }
+
+    .title {
+      font-size: clamp(32px, 4vw, 54px);
+      font-weight: 900;
+      letter-spacing: 0.18em;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      opacity: 0.95;
+      font-weight: 700;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .icon-btn,
+    .bottom-btn {
+      border: 1px solid var(--panel-border);
+      background: rgba(246, 252, 255, 0.95);
+      backdrop-filter: blur(8px);
+      color: var(--panel-strong);
+      cursor: pointer;
+      transition: transform 160ms ease, background 160ms ease;
+    }
+
+    .icon-btn:hover,
+    .bottom-btn:hover {
+      transform: translateY(-2px);
+      background: rgba(255, 255, 255, 1);
+    }
+
+    .icon-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      font-size: 26px;
+      font-weight: 800;
+    }
+
+    .panel {
+      position: absolute;
+      left: 18px;
+      bottom: 108px;
+      width: min(300px, calc(100vw - 36px));
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(241, 250, 255, 0.92);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 16px 48px rgba(0, 61, 104, 0.16);
+      color: var(--panel-text);
+      pointer-events: auto;
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      color: var(--panel-strong);
+    }
+
+    .panel p {
+      margin: 4px 0;
+      font-size: 13px;
+      line-height: 1.45;
+      opacity: 1;
+    }
+
+    .bottom-bar {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .bottom-btn {
+      min-height: 62px;
+      border-radius: 16px;
+      font-size: 14px;
+      font-weight: 800;
+      padding: 8px 10px;
+    }
+
+    .status {
+      position: absolute;
+      right: 18px;
+      top: 90px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(241, 250, 255, 0.94);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(8px);
+      min-width: 168px;
+      box-shadow: 0 16px 48px rgba(0, 61, 104, 0.16);
+      color: var(--panel-text);
+      pointer-events: auto;
+    }
+
+    .status strong,
+    .status div {
+      display: block;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .status .danger {
+      color: #b42318;
+    }
+
+    .status .safe {
+      color: #0f8a5f;
+    }
+
+    .hint {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 108px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(246, 252, 255, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.26);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--panel-strong);
+      pointer-events: auto;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .export-panel {
+      left: auto;
+      right: 18px;
+      width: min(420px, calc(100vw - 36px));
+      max-height: min(56vh, 520px);
+      overflow: auto;
+      z-index: 40;
+      pointer-events: auto !important;
+    }
+
+    .export-panel textarea {
+      width: 100%;
+      min-height: 220px;
+      resize: vertical;
+      margin-top: 10px;
+      border: 1px solid rgba(7, 57, 93, 0.16);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.98);
+      color: #062a45;
+      padding: 12px;
+      font: 12px/1.45 Consolas, "Courier New", monospace;
+      pointer-events: auto;
+    }
+
+    .export-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      pointer-events: auto;
+    }
+
+    .mini-btn {
+      flex: 1;
+      min-height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+      background: rgba(10, 110, 186, 0.9);
+      color: #ffffff;
+      font-weight: 800;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    @media (max-width: 820px) {
+      .topbar {
+        top: 12px;
+        left: 12px;
+        right: 12px;
+      }
+
+      .title {
+        font-size: 28px;
+        letter-spacing: 0.12em;
+      }
+
+      .status {
+        top: 76px;
+        right: 12px;
+        min-width: 142px;
+      }
+
+      .hint {
+        top: 72px;
+        width: calc(100vw - 112px);
+      }
+
+      .panel {
+        left: 12px;
+        bottom: 94px;
+      }
+
+      .export-panel {
+        right: 12px;
+      }
+
+      .bottom-bar {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        gap: 8px;
+      }
+
+      .bottom-btn {
+        min-height: 56px;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <canvas id="board"></canvas>
+
+    <div class="hud">
+      <div class="topbar">
+        <div class="stats">
+          <div class="stat"><span>⭐</span><span id="openCount">0</span><div class="bar"><span id="openBar"></span></div></div>
+          <div class="stat"><span>🚩</span><span id="flagCount">0</span><div class="bar"><span id="flagBar"></span></div></div>
+          <div class="stat"><span>💎</span><span id="scoreCount">0</span></div>
+        </div>
+
+        <div class="title-wrap">
+          <div class="title">踩地雷</div>
+          <div class="subtitle">500 × 500 Minesweeper</div>
+        </div>
+
+        <div class="actions">
+          <button class="icon-btn" id="centerBtn" title="回到起點">⌂</button>
+          <button class="icon-btn" id="togglePanelBtn" title="切換說明">☰</button>
+        </div>
+      </div>
+
+      <div class="hint">左鍵翻開、右鍵插旗、拖曳平移、滾輪縮放、雙擊已開格可快速展開</div>
+
+      <div class="status" id="statusBox">
+        <strong id="modeLabel">狀態：探索中</strong>
+        <div id="coordLabel">中心：X 0 / Y 0</div>
+        <div id="zoomLabel">縮放：100%</div>
+        <div id="dangerLabel" class="safe">安全連開與自動推理已啟用</div>
+      </div>
+
+      <div class="panel" id="helpPanel">
+        <h2>玩法</h2>
+        <p>這是一個固定大小為 500 × 500 的踩地雷棋盤。每一格是否有雷由座標固定決定，所以重新打開同一位置會得到同一張地圖。</p>
+        <p>第一步與第一圈鄰格保證安全，避免一開局就踩雷。踩到雷後可以立即在附近重新開始，不需要整盤重置。</p>
+        <p>每次你翻格或插旗後，系統都會自動檢查所有已開數字格，能確定安全的就自動展開，能確定是雷的就自動插旗。</p>
+        <p>底部按鈕可以切換插旗模式、重設出生點、基本判斷、進階推理、快速展開與安全圈。</p>
+      </div>
+
+      <div class="panel export-panel hidden" id="exportPanel">
+        <h2>局面資訊</h2>
+        <p>會輸出目前可見區域與已知格子的摘要，貼給我後我可以直接用來判讀局面。</p>
+        <textarea id="exportText" readonly></textarea>
+        <div class="export-actions">
+          <button class="mini-btn" id="copyExportBtn">複製資訊</button>
+          <button class="mini-btn" id="closeExportBtn">關閉</button>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <button class="bottom-btn" id="flagModeBtn">🚩 插旗模式：關</button>
+        <button class="bottom-btn" id="resetBtn">🔄 重新出生</button>
+        <button class="bottom-btn" id="basicSolveBtn">🔎 基本判斷：開</button>
+        <button class="bottom-btn" id="advancedSolveBtn">🧠 進階推理：開</button>
+        <button class="bottom-btn" id="revealNeighborsBtn">✨ 快速展開：開</button>
+        <button class="bottom-btn" id="safeZoneBtn">🛡️ 安全圈：開</button>
+        <button class="bottom-btn" id="exportBtn">📋 匯出局面</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
+
+    const ui = {
+      openCount: document.getElementById("openCount"),
+      flagCount: document.getElementById("flagCount"),
+      scoreCount: document.getElementById("scoreCount"),
+      openBar: document.getElementById("openBar"),
+      flagBar: document.getElementById("flagBar"),
+      modeLabel: document.getElementById("modeLabel"),
+      coordLabel: document.getElementById("coordLabel"),
+      zoomLabel: document.getElementById("zoomLabel"),
+      dangerLabel: document.getElementById("dangerLabel"),
+      helpPanel: document.getElementById("helpPanel"),
+      exportPanel: document.getElementById("exportPanel"),
+      exportText: document.getElementById("exportText"),
+      flagModeBtn: document.getElementById("flagModeBtn"),
+      basicSolveBtn: document.getElementById("basicSolveBtn"),
+      advancedSolveBtn: document.getElementById("advancedSolveBtn"),
+      revealNeighborsBtn: document.getElementById("revealNeighborsBtn"),
+      safeZoneBtn: document.getElementById("safeZoneBtn"),
+      exportBtn: document.getElementById("exportBtn"),
+      copyExportBtn: document.getElementById("copyExportBtn"),
+      closeExportBtn: document.getElementById("closeExportBtn")
+    };
+
+    const state = {
+      cameraX: -2,
+      cameraY: -2,
+      scale: 1,
+      tileBaseSize: 28,
+      dragging: false,
+      movedDuringDrag: false,
+      lastPointerX: 0,
+      lastPointerY: 0,
+      pointerId: null,
+      gameOverAt: null,
+      pointerDownCell: null,
+      pointerDownButton: 0,
+      flagMode: false,
+      basicSolve: true,
+      advancedSolve: true,
+      quickExpand: true,
+      showNumbers: true,
+      safeZone: true,
+      firstRevealDone: false,
+      safeOriginX: 0,
+      safeOriginY: 0,
+      opened: new Set(),
+      flagged: new Set(),
+      exploded: new Set(),
+      advancedOpened: new Set(),
+      advancedFlagged: new Set(),
+      openCount: 0,
+      score: 0,
+      lastSolverPasses: 0,
+      clearedRegions: new Set(),
+      regionOpenedSafeCounts: new Map()
+    };
+
+    const cache = new Map();
+    const BOARD_WIDTH = 500;
+    const BOARD_HEIGHT = 500;
+    const BOARD_START_X = 0;
+    const BOARD_START_Y = 0;
+    const REGION_SIZE = 8;
+    const REGION_COLS = Math.ceil(BOARD_WIDTH / REGION_SIZE);
+    const REGION_ROWS = Math.ceil(BOARD_HEIGHT / REGION_SIZE);
+    const NEIGHBORS = [
+      [-1, -1], [0, -1], [1, -1],
+      [-1, 0],           [1, 0],
+      [-1, 1],  [0, 1],  [1, 1]
+    ];
+    const regionMetaCache = new Map();
+
+    function key(x, y) {
+      return `${x},${y}`;
+    }
+
+    function splitKey(value) {
+      const [x, y] = value.split(",").map(Number);
+      return { x, y };
+    }
+
+    function hash2D(x, y) {
+      let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263);
+      h = (h ^ (h >>> 13)) >>> 0;
+      h = Math.imul(h, 1274126177) >>> 0;
+      h ^= h >>> 16;
+      return h >>> 0;
+    }
+
+    function isInsideBoard(x, y) {
+      return x >= BOARD_START_X &&
+        y >= BOARD_START_Y &&
+        x < BOARD_START_X + BOARD_WIDTH &&
+        y < BOARD_START_Y + BOARD_HEIGHT;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function clampCamera() {
+      const visibleCols = canvas.clientWidth / getTileSize();
+      const visibleRows = canvas.clientHeight / getTileSize();
+      const minCameraX = BOARD_START_X + BOARD_WIDTH - visibleCols;
+      const minCameraY = BOARD_START_Y + BOARD_HEIGHT - visibleRows;
+
+      if (visibleCols >= BOARD_WIDTH) {
+        state.cameraX = BOARD_START_X - (visibleCols - BOARD_WIDTH) / 2;
+      } else {
+        state.cameraX = clamp(state.cameraX, BOARD_START_X, minCameraX);
+      }
+
+      if (visibleRows >= BOARD_HEIGHT) {
+        state.cameraY = BOARD_START_Y - (visibleRows - BOARD_HEIGHT) / 2;
+      } else {
+        state.cameraY = clamp(state.cameraY, BOARD_START_Y, minCameraY);
+      }
+    }
+
+    function isSafeCell(x, y) {
+      if (!state.safeZone || !state.firstRevealDone) return false;
+      return Math.abs(x - state.safeOriginX) <= 1 && Math.abs(y - state.safeOriginY) <= 1;
+    }
+
+    function mineChanceAtDistance(distance) {
+      if (distance < 8) return 0.1;
+      if (distance < 24) return 0.135;
+      if (distance < 60) return 0.16;
+      return 0.185;
+    }
+
+    function hasMine(x, y) {
+      if (!isInsideBoard(x, y)) return false;
+      if (isSafeCell(x, y)) return false;
+      const distance = Math.abs(x) + Math.abs(y);
+      const chance = mineChanceAtDistance(distance);
+      return (hash2D(x, y) % 10000) < chance * 10000;
+    }
+
+    function getCellData(x, y) {
+      if (!isInsideBoard(x, y)) {
+        return { mined: false, adjacent: 0 };
+      }
+      const id = key(x, y);
+      if (cache.has(id)) return cache.get(id);
+
+      const mined = hasMine(x, y);
+      let adjacent = 0;
+      if (!mined) {
+        for (const [dx, dy] of NEIGHBORS) {
+          if (hasMine(x + dx, y + dy)) adjacent++;
+        }
+      }
+
+      const data = { mined, adjacent };
+      cache.set(id, data);
+      return data;
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      clampCamera();
+      draw();
+    }
+
+    function getTileSize() {
+      return Math.max(10, Math.min(52, state.tileBaseSize * state.scale));
+    }
+
+    function isKnownMine(id) {
+      return state.flagged.has(id) || state.exploded.has(id);
+    }
+
+    function getRegionCoords(x, y) {
+      return {
+        col: Math.min(REGION_COLS - 1, Math.floor((x - BOARD_START_X) / REGION_SIZE)),
+        row: Math.min(REGION_ROWS - 1, Math.floor((y - BOARD_START_Y) / REGION_SIZE))
+      };
+    }
+
+    function getRegionKey(col, row) {
+      return `${col},${row}`;
+    }
+
+    function getRegionBounds(col, row) {
+      const startX = BOARD_START_X + col * REGION_SIZE;
+      const endX = Math.min(BOARD_START_X + BOARD_WIDTH - 1, startX + REGION_SIZE - 1);
+      const startY = BOARD_START_Y + row * REGION_SIZE;
+      const endY = Math.min(BOARD_START_Y + BOARD_HEIGHT - 1, startY + REGION_SIZE - 1);
+      return { startX, endX, startY, endY };
+    }
+
+    function getRegionMeta(col, row) {
+      const regionId = getRegionKey(col, row);
+      if (regionMetaCache.has(regionId)) return regionMetaCache.get(regionId);
+
+      const bounds = getRegionBounds(col, row);
+      let mineCount = 0;
+
+      for (let y = bounds.startY; y <= bounds.endY; y++) {
+        for (let x = bounds.startX; x <= bounds.endX; x++) {
+          if (hasMine(x, y)) mineCount++;
+        }
+      }
+
+      const totalCells = (bounds.endX - bounds.startX + 1) * (bounds.endY - bounds.startY + 1);
+      const meta = {
+        ...bounds,
+        totalCells,
+        mineCount,
+        safeCells: totalCells - mineCount
+      };
+      regionMetaCache.set(regionId, meta);
+      return meta;
+    }
+
+    function updateRegionProgressForCell(x, y) {
+      const cell = getCellData(x, y);
+      if (cell.mined) return;
+
+      const { col, row } = getRegionCoords(x, y);
+      const regionId = getRegionKey(col, row);
+      const nextCount = (state.regionOpenedSafeCounts.get(regionId) || 0) + 1;
+      state.regionOpenedSafeCounts.set(regionId, nextCount);
+
+      const meta = getRegionMeta(col, row);
+      if (nextCount >= meta.safeCells) {
+        state.clearedRegions.add(regionId);
+      }
+    }
+
+    function screenToWorld(px, py) {
+      const size = getTileSize();
+      return {
+        x: Math.floor(px / size + state.cameraX),
+        y: Math.floor(py / size + state.cameraY)
+      };
+    }
+
+    function worldToScreen(x, y) {
+      const size = getTileSize();
+      return {
+        x: (x - state.cameraX) * size,
+        y: (y - state.cameraY) * size
+      };
+    }
+
+    function updateUI() {
+      ui.openCount.textContent = state.openCount.toLocaleString("zh-Hant");
+      ui.flagCount.textContent = state.flagged.size.toLocaleString("zh-Hant");
+      ui.scoreCount.textContent = state.score.toLocaleString("zh-Hant");
+      ui.openBar.style.width = `${Math.min(100, 16 + Math.log10(state.openCount + 1) * 28)}%`;
+      ui.flagBar.style.width = `${Math.min(100, 16 + Math.log10(state.flagged.size + 1) * 40)}%`;
+      ui.modeLabel.textContent = state.gameOverAt ? "狀態：踩雷了，已標出爆點" : (state.flagMode ? "狀態：插旗模式" : "狀態：探索中");
+      clampCamera();
+      const cx = Math.floor(state.cameraX + canvas.clientWidth / getTileSize() / 2);
+      const cy = Math.floor(state.cameraY + canvas.clientHeight / getTileSize() / 2);
+      ui.coordLabel.textContent = `中心：X ${cx} / Y ${cy}`;
+      ui.zoomLabel.textContent = `縮放：${Math.round(state.scale * 100)}%`;
+      if (state.basicSolve && state.advancedSolve) {
+        ui.dangerLabel.textContent = `基本判斷與進階推理已啟用，連鎖 ${state.lastSolverPasses} 輪`;
+      } else if (state.basicSolve) {
+        ui.dangerLabel.textContent = "只啟用基本判斷";
+      } else if (state.advancedSolve) {
+        ui.dangerLabel.textContent = "只啟用進階推理";
+      } else {
+        ui.dangerLabel.textContent = "自動判斷已全部關閉";
+      }
+      ui.dangerLabel.className = state.gameOverAt ? "danger" : "safe";
+      ui.flagModeBtn.textContent = `🚩 插旗模式：${state.flagMode ? "開" : "關"}`;
+      ui.basicSolveBtn.textContent = `🔎 基本判斷：${state.basicSolve ? "開" : "關"}`;
+      ui.advancedSolveBtn.textContent = `🧠 進階推理：${state.advancedSolve ? "開" : "關"}`;
+      ui.revealNeighborsBtn.textContent = `✨ 快速展開：${state.quickExpand ? "開" : "關"}`;
+      ui.safeZoneBtn.textContent = `🛡️ 安全圈：${state.safeZone ? "開" : "關"}`;
+    }
+
+    function revealCell(x, y, allowCascade = true) {
+      if (!isInsideBoard(x, y)) return;
+      const id = key(x, y);
+      if (state.opened.has(id) || state.flagged.has(id)) return;
+
+      if (!state.firstRevealDone) {
+        state.firstRevealDone = true;
+        state.safeOriginX = x;
+        state.safeOriginY = y;
+        cache.clear();
+      }
+
+      const cell = getCellData(x, y);
+      state.opened.add(id);
+      state.openCount++;
+      state.score += cell.mined ? -40 : Math.max(2, 12 - cell.adjacent);
+      if (!cell.mined) updateRegionProgressForCell(x, y);
+
+      if (cell.mined) {
+        state.exploded.add(id);
+        state.gameOverAt = id;
+        updateUI();
+        draw();
+        return;
+      }
+
+      if (allowCascade && cell.adjacent === 0) {
+        const queue = [[x, y]];
+        const seen = new Set([id]);
+
+        while (queue.length) {
+          const [cx, cy] = queue.shift();
+          for (const [dx, dy] of NEIGHBORS) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (!isInsideBoard(nx, ny)) continue;
+            const nid = key(nx, ny);
+            if (seen.has(nid) || state.opened.has(nid) || state.flagged.has(nid)) continue;
+            seen.add(nid);
+            const ncell = getCellData(nx, ny);
+            if (ncell.mined) continue;
+            state.opened.add(nid);
+            state.openCount++;
+            state.score += Math.max(1, 10 - ncell.adjacent);
+            updateRegionProgressForCell(nx, ny);
+            if (ncell.adjacent === 0) queue.push([nx, ny]);
+          }
+        }
+      }
+    }
+
+    function revealCellAsAdvanced(x, y) {
+      const beforeOpened = new Set(state.opened);
+      revealCell(x, y, true);
+      let changed = false;
+      if (!state.gameOverAt) {
+        for (const id of state.opened) {
+          if (!beforeOpened.has(id)) {
+            state.advancedOpened.add(id);
+            changed = true;
+          }
+        }
+      }
+      return changed;
+    }
+
+    function countFlaggedNeighbors(x, y) {
+      let total = 0;
+      for (const [dx, dy] of NEIGHBORS) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (isInsideBoard(nx, ny) && isKnownMine(key(nx, ny))) total++;
+      }
+      return total;
+    }
+
+    function getNeighborState(x, y) {
+      const hidden = [];
+      let flagged = 0;
+
+      for (const [dx, dy] of NEIGHBORS) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (!isInsideBoard(nx, ny)) continue;
+        const nid = key(nx, ny);
+        if (isKnownMine(nid)) {
+          flagged++;
+        } else if (!state.opened.has(nid)) {
+          hidden.push([nx, ny]);
+        }
+      }
+
+      return { hidden, flagged };
+    }
+
+    function listVisibleBounds() {
+      const size = getTileSize();
+      const left = Math.max(BOARD_START_X, Math.floor(state.cameraX));
+      const top = Math.max(BOARD_START_Y, Math.floor(state.cameraY));
+      const right = Math.min(BOARD_START_X + BOARD_WIDTH - 1, Math.floor(state.cameraX + canvas.clientWidth / size));
+      const bottom = Math.min(BOARD_START_Y + BOARD_HEIGHT - 1, Math.floor(state.cameraY + canvas.clientHeight / size));
+      return { left, top, right, bottom };
+    }
+
+    function cellSymbolAt(x, y) {
+      const id = key(x, y);
+      if (state.exploded.has(id)) return "X";
+      if (state.flagged.has(id)) return "F";
+      if (!state.opened.has(id)) return ".";
+      const cell = getCellData(x, y);
+      return cell.adjacent === 0 ? "_" : String(cell.adjacent);
+    }
+
+    function buildViewportSnapshot(bounds) {
+      const lines = [];
+      lines.push(`x:${bounds.left}-${bounds.right}, y:${bounds.top}-${bounds.bottom}`);
+      for (let y = bounds.top; y <= bounds.bottom; y++) {
+        let row = "";
+        for (let x = bounds.left; x <= bounds.right; x++) {
+          row += cellSymbolAt(x, y);
+        }
+        lines.push(row);
+      }
+      return lines.join("\n");
+    }
+
+    function buildKnownCellsList(bounds, padding = 3) {
+      const minX = Math.max(BOARD_START_X, bounds.left - padding);
+      const maxX = Math.min(BOARD_START_X + BOARD_WIDTH - 1, bounds.right + padding);
+      const minY = Math.max(BOARD_START_Y, bounds.top - padding);
+      const maxY = Math.min(BOARD_START_Y + BOARD_HEIGHT - 1, bounds.bottom + padding);
+
+      const opened = [...state.opened]
+        .map(splitKey)
+        .filter(({ x, y }) => x >= minX && x <= maxX && y >= minY && y <= maxY)
+        .sort((a, b) => a.y - b.y || a.x - b.x);
+      const flagged = [...state.flagged]
+        .map(splitKey)
+        .filter(({ x, y }) => x >= minX && x <= maxX && y >= minY && y <= maxY)
+        .sort((a, b) => a.y - b.y || a.x - b.x);
+      const exploded = [...state.exploded]
+        .map(splitKey)
+        .filter(({ x, y }) => x >= minX && x <= maxX && y >= minY && y <= maxY)
+        .sort((a, b) => a.y - b.y || a.x - b.x);
+
+      return {
+        window: { minX, maxX, minY, maxY },
+        opened: opened.map(({ x, y }) => ({ x, y, value: getCellData(x, y).adjacent })),
+        flagged,
+        exploded
+      };
+    }
+
+    function buildFrontierSummary(bounds, padding = 2, limit = 80) {
+      const minX = Math.max(BOARD_START_X, bounds.left - padding);
+      const maxX = Math.min(BOARD_START_X + BOARD_WIDTH - 1, bounds.right + padding);
+      const minY = Math.max(BOARD_START_Y, bounds.top - padding);
+      const maxY = Math.min(BOARD_START_Y + BOARD_HEIGHT - 1, bounds.bottom + padding);
+      const rows = [];
+
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const id = key(x, y);
+          if (!state.opened.has(id)) continue;
+          const cell = getCellData(x, y);
+          if (cell.mined || cell.adjacent === 0) continue;
+          const { hidden, flagged } = getNeighborState(x, y);
+          if (hidden.length === 0) continue;
+          rows.push(`(${x},${y})=${cell.adjacent}; hidden=${hidden.length}; flagged=${flagged}`);
+          if (rows.length >= limit) return rows;
+        }
+      }
+
+      return rows;
+    }
+
+    function buildRegionSummary() {
+      const regions = [];
+      for (let row = 0; row < REGION_ROWS; row++) {
+        for (let col = 0; col < REGION_COLS; col++) {
+          const regionId = getRegionKey(col, row);
+          const meta = getRegionMeta(col, row);
+          regions.push({
+            col,
+            row,
+            mineCount: meta.mineCount,
+            cleared: state.clearedRegions.has(regionId)
+          });
+        }
+      }
+      return regions;
+    }
+
+    function serializeGameState() {
+      const bounds = listVisibleBounds();
+      const known = buildKnownCellsList(bounds);
+      const frontier = buildFrontierSummary(bounds);
+      const cleared = buildRegionSummary()
+        .filter((region) => region.cleared)
+        .map((region) => `(${region.col},${region.row})=${region.mineCount}`);
+
+      return [
+        "# Minesweeper State Compact",
+        `board=${BOARD_WIDTH}x${BOARD_HEIGHT} region=${REGION_SIZE}x${REGION_SIZE}`,
+        `camera=(${Number(state.cameraX.toFixed(2))}, ${Number(state.cameraY.toFixed(2))}) scale=${Number(state.scale.toFixed(2))}`,
+        `stats opened=${state.openCount} flagged=${state.flagged.size} exploded=${state.exploded.size} score=${state.score} solverPasses=${state.lastSolverPasses} gameOver=${state.gameOverAt ?? "none"}`,
+        "",
+        "[viewport]",
+        buildViewportSnapshot(bounds),
+        "",
+        `[known-window] x=${known.window.minX}-${known.window.maxX}, y=${known.window.minY}-${known.window.maxY}`,
+        `opened=${known.opened.length} flagged=${known.flagged.length} exploded=${known.exploded.length}`,
+        `flags=${known.flagged.map(({ x, y }) => `(${x},${y})`).join(" ") || "-"}`,
+        `exploded=${known.exploded.map(({ x, y }) => `(${x},${y})`).join(" ") || "-"}`,
+        "",
+        "[frontier]",
+        frontier.join("\n") || "none",
+        "",
+        "[cleared-regions]",
+        cleared.join(" ") || "none"
+      ].join("\n");
+    }
+
+    function refreshExportText() {
+      ui.exportText.value = serializeGameState();
+    }
+
+    function refreshExportTextAsync() {
+      ui.exportText.value = "正在整理局面資訊...";
+      setTimeout(() => {
+        ui.exportText.value = serializeGameState();
+      }, 0);
+    }
+
+    function syncPanels() {
+      if (!ui.exportPanel.classList.contains("hidden")) {
+        refreshExportTextAsync();
+      }
+    }
+
+    function expandAround(x, y) {
+      if (!isInsideBoard(x, y)) return;
+      const cell = getCellData(x, y);
+      if (!state.opened.has(key(x, y)) || cell.adjacent === 0) return;
+      if (countFlaggedNeighbors(x, y) !== cell.adjacent) return;
+      for (const [dx, dy] of NEIGHBORS) {
+        revealCell(x + dx, y + dy, true);
+      }
+    }
+
+    function expandSatisfiedNeighborsAround(x, y) {
+      let changed = false;
+      for (const [dx, dy] of [[0, 0], ...NEIGHBORS]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (!isInsideBoard(nx, ny)) continue;
+        if (!state.opened.has(key(nx, ny))) continue;
+        const before = state.opened.size;
+        expandAround(nx, ny);
+        if (state.opened.size !== before) changed = true;
+      }
+      return changed;
+    }
+
+    function toggleFlag(x, y) {
+      if (!isInsideBoard(x, y)) return;
+      const id = key(x, y);
+      if (state.opened.has(id)) return;
+      if (state.flagged.has(id)) {
+        state.flagged.delete(id);
+        state.advancedFlagged.delete(id);
+      } else {
+        state.flagged.add(id);
+        state.advancedFlagged.delete(id);
+        expandSatisfiedNeighborsAround(x, y);
+      }
+    }
+
+    function buildConstraints() {
+      const constraints = [];
+
+      for (const id of state.opened) {
+        const { x, y } = splitKey(id);
+        const cell = getCellData(x, y);
+        if (cell.mined || cell.adjacent === 0) continue;
+
+        const { hidden, flagged } = getNeighborState(x, y);
+        if (hidden.length === 0) continue;
+
+        constraints.push({
+          source: id,
+          cells: hidden.map(([nx, ny]) => key(nx, ny)).sort(),
+          mines: cell.adjacent - flagged
+        });
+      }
+
+      return constraints.filter((constraint) =>
+        constraint.mines >= 0 && constraint.mines <= constraint.cells.length
+      );
+    }
+
+    function isSubset(small, large) {
+      return small.every((cell) => large.includes(cell));
+    }
+
+    function differenceCells(large, small) {
+      const smallSet = new Set(small);
+      return large.filter((cell) => !smallSet.has(cell));
+    }
+
+    function applyConstraintPair(a, b, toReveal, toFlag) {
+      if (a.cells.length >= b.cells.length) return false;
+      if (!isSubset(a.cells, b.cells)) return false;
+
+      const diff = differenceCells(b.cells, a.cells);
+      const mineDiff = b.mines - a.mines;
+      let changed = false;
+
+      if (mineDiff === 0) {
+        for (const id of diff) {
+          if (!state.opened.has(id) && !state.flagged.has(id)) {
+            toReveal.add(id);
+            changed = true;
+          }
+        }
+      }
+
+      if (mineDiff === diff.length) {
+        for (const id of diff) {
+          if (!state.opened.has(id) && !state.flagged.has(id)) {
+            toFlag.add(id);
+            changed = true;
+          }
+        }
+      }
+
+      return changed;
+    }
+
+    function basicSolveStep() {
+      let changed = false;
+      const toReveal = new Set();
+      const toFlag = new Set();
+      const constraints = buildConstraints();
+
+      for (const constraint of constraints) {
+        if (constraint.mines === 0) {
+          for (const id of constraint.cells) {
+            toReveal.add(id);
+          }
+        }
+
+        if (constraint.mines === constraint.cells.length) {
+          for (const id of constraint.cells) {
+            toFlag.add(id);
+          }
+        }
+      }
+
+      for (const id of toFlag) {
+        if (!state.flagged.has(id) && !state.opened.has(id)) {
+          state.flagged.add(id);
+          state.advancedFlagged.delete(id);
+          changed = true;
+        }
+      }
+
+      for (const id of toReveal) {
+        if (state.gameOverAt) break;
+        if (state.opened.has(id) || state.flagged.has(id)) continue;
+        const { x, y } = splitKey(id);
+        const beforeOpened = state.opened.size;
+        revealCell(x, y, true);
+        if (state.opened.size !== beforeOpened || state.gameOverAt) {
+          changed = true;
+        }
+      }
+
+      return changed;
+    }
+
+    function advancedSolveStep() {
+      let changed = false;
+      const toReveal = new Set();
+      const toFlag = new Set();
+      const constraints = buildConstraints();
+
+      for (let i = 0; i < constraints.length; i++) {
+        for (let j = 0; j < constraints.length; j++) {
+          if (i === j) continue;
+          if (applyConstraintPair(constraints[i], constraints[j], toReveal, toFlag)) {
+            changed = true;
+          }
+        }
+      }
+
+      for (const id of toFlag) {
+        if (!state.flagged.has(id) && !state.opened.has(id)) {
+          state.flagged.add(id);
+          state.advancedFlagged.add(id);
+          changed = true;
+        }
+      }
+
+      for (const id of toReveal) {
+        if (state.gameOverAt) break;
+        if (state.opened.has(id) || state.flagged.has(id)) continue;
+        const { x, y } = splitKey(id);
+        if (revealCellAsAdvanced(x, y) || state.gameOverAt) {
+          changed = true;
+        }
+      }
+
+      return changed;
+    }
+
+    function runAutoSolve() {
+      let guard = 0;
+      let anyChanged = false;
+      while (!state.gameOverAt && guard < 200) {
+        guard++;
+        const beforeOpened = state.opened.size;
+        const beforeFlagIds = new Set(state.flagged);
+        const beforeFlagged = state.flagged.size;
+        let changed = false;
+
+        if (state.basicSolve) {
+          changed = basicSolveStep() || changed;
+        }
+
+        if (state.advancedSolve) {
+          changed = advancedSolveStep() || changed;
+        }
+
+        let localExpand = false;
+        if (state.basicSolve && state.flagged.size > beforeFlagged) {
+          const newFlags = [...state.flagged].filter((id) => !beforeFlagIds.has(id));
+          for (const id of newFlags) {
+            const { x, y } = splitKey(id);
+            localExpand = expandSatisfiedNeighborsAround(x, y) || localExpand;
+          }
+        }
+
+        const progressed = changed || localExpand || state.opened.size !== beforeOpened || state.flagged.size !== beforeFlagged;
+        anyChanged = anyChanged || progressed;
+        if (!progressed) break;
+      }
+      state.lastSolverPasses = guard;
+      return anyChanged;
+    }
+
+    function maybeRunAutoSolve() {
+      if (!state.basicSolve && !state.advancedSolve) {
+        state.lastSolverPasses = 0;
+        return false;
+      }
+      return runAutoSolve();
+    }
+
+    function resetAtCenter() {
+      state.cameraX = BOARD_START_X;
+      state.cameraY = BOARD_START_Y;
+      state.scale = 1;
+      state.gameOverAt = null;
+      state.firstRevealDone = false;
+      state.safeOriginX = BOARD_START_X;
+      state.safeOriginY = BOARD_START_Y;
+      state.opened.clear();
+      state.flagged.clear();
+      state.exploded.clear();
+      state.advancedOpened.clear();
+      state.advancedFlagged.clear();
+      state.clearedRegions.clear();
+      state.regionOpenedSafeCounts.clear();
+      state.openCount = 0;
+      state.score = 0;
+      state.lastSolverPasses = 0;
+      cache.clear();
+      updateUI();
+      syncPanels();
+      draw();
+    }
+
+    function drawCell(x, y, size) {
+      if (!isInsideBoard(x, y)) return;
+      const id = key(x, y);
+      const { x: sx, y: sy } = worldToScreen(x, y);
+      if (sx + size < 0 || sy + size < 0 || sx > canvas.clientWidth || sy > canvas.clientHeight) return;
+
+      const opened = state.opened.has(id);
+      const flagged = state.flagged.has(id);
+      const exploded = state.exploded.has(id);
+      const advancedOpened = state.advancedOpened.has(id);
+      const advancedFlagged = state.advancedFlagged.has(id);
+      const cell = getCellData(x, y);
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(255,255,255,0.65)";
+
+      if (opened) {
+        ctx.fillStyle = exploded
+          ? "#ffd5d5"
+          : (advancedOpened ? "#fff7d6" : (cell.adjacent === 0 ? "#eef8ff" : "#ffffff"));
+        ctx.fillRect(sx, sy, size, size);
+      } else {
+        ctx.fillStyle = (x + y) % 2 === 0 ? "#9fd9ff" : "#93d3ff";
+        ctx.fillRect(sx, sy, size, size);
+      }
+
+      if (advancedOpened && opened && !exploded) {
+        ctx.fillStyle = "rgba(255, 193, 7, 0.24)";
+        ctx.fillRect(sx, sy, size, size);
+      }
+
+      ctx.strokeRect(sx + 0.5, sy + 0.5, size - 1, size - 1);
+
+      if (opened && cell.mined) {
+        ctx.fillStyle = exploded ? "#ff4d4d" : "#303030";
+        ctx.beginPath();
+        ctx.arc(sx + size / 2, sy + size / 2, size * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(48,48,48,0.65)";
+        ctx.beginPath();
+        ctx.moveTo(sx + size * 0.2, sy + size * 0.2);
+        ctx.lineTo(sx + size * 0.8, sy + size * 0.8);
+        ctx.moveTo(sx + size * 0.8, sy + size * 0.2);
+        ctx.lineTo(sx + size * 0.2, sy + size * 0.8);
+        ctx.moveTo(sx + size / 2, sy + size * 0.12);
+        ctx.lineTo(sx + size / 2, sy + size * 0.88);
+        ctx.moveTo(sx + size * 0.12, sy + size / 2);
+        ctx.lineTo(sx + size * 0.88, sy + size / 2);
+        ctx.stroke();
+      } else if (flagged) {
+        ctx.fillStyle = advancedFlagged ? "#ff8b3d" : "#ff4e94";
+        ctx.beginPath();
+        ctx.moveTo(sx + size * 0.3, sy + size * 0.2);
+        ctx.lineTo(sx + size * 0.3, sy + size * 0.8);
+        ctx.lineTo(sx + size * 0.36, sy + size * 0.8);
+        ctx.lineTo(sx + size * 0.36, sy + size * 0.52);
+        ctx.lineTo(sx + size * 0.72, sy + size * 0.42);
+        ctx.lineTo(sx + size * 0.36, sy + size * 0.24);
+        ctx.lineTo(sx + size * 0.36, sy + size * 0.2);
+        ctx.closePath();
+        ctx.fill();
+        if (advancedFlagged) {
+          ctx.strokeStyle = "rgba(142, 74, 15, 0.9)";
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+        }
+      } else if (opened && cell.adjacent > 0) {
+        const colors = {
+          1: "#3d8cf7",
+          2: "#34b86f",
+          3: "#e65f7a",
+          4: "#6f7bf9",
+          5: "#ff8a3d",
+          6: "#17a7a1",
+          7: "#3d5370",
+          8: "#8f44ff"
+        };
+        ctx.fillStyle = state.showNumbers ? colors[cell.adjacent] : "#7da7cc";
+        ctx.font = `900 ${Math.floor(size * 0.56)}px Segoe UI`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(cell.adjacent), sx + size / 2, sy + size / 2 + 1);
+      }
+    }
+
+    function drawGridBackground() {
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.clientHeight);
+      gradient.addColorStop(0, "rgba(255,255,255,0.08)");
+      gradient.addColorStop(1, "rgba(0,87,155,0.12)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    }
+
+    function drawRegionOverlays(size) {
+      for (let row = 0; row < REGION_ROWS; row++) {
+        for (let col = 0; col < REGION_COLS; col++) {
+          const regionId = getRegionKey(col, row);
+          const meta = getRegionMeta(col, row);
+          const topLeft = worldToScreen(meta.startX, meta.startY);
+          const width = (meta.endX - meta.startX + 1) * size;
+          const height = (meta.endY - meta.startY + 1) * size;
+
+          if (topLeft.x > canvas.clientWidth || topLeft.y > canvas.clientHeight) continue;
+          if (topLeft.x + width < 0 || topLeft.y + height < 0) continue;
+
+          if (state.clearedRegions.has(regionId)) {
+            ctx.fillStyle = "rgba(70, 209, 153, 0.12)";
+            ctx.fillRect(topLeft.x, topLeft.y, width, height);
+          }
+
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = state.clearedRegions.has(regionId)
+            ? "rgba(36, 144, 99, 0.8)"
+            : "rgba(7, 57, 93, 0.28)";
+          ctx.strokeRect(topLeft.x, topLeft.y, width, height);
+
+          if (state.clearedRegions.has(regionId)) {
+            const fontSize = Math.max(12, Math.min(28, size * 1.15));
+            ctx.fillStyle = "#0a5a3c";
+            ctx.font = `900 ${fontSize}px Segoe UI`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(
+              `${meta.mineCount}`,
+              topLeft.x + width / 2,
+              topLeft.y + height / 2
+            );
+          }
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      drawGridBackground();
+
+      const size = getTileSize();
+      const cols = Math.ceil(canvas.clientWidth / size) + 2;
+      const rows = Math.ceil(canvas.clientHeight / size) + 2;
+      const startX = Math.floor(state.cameraX);
+      const startY = Math.floor(state.cameraY);
+      const endX = Math.min(BOARD_START_X + BOARD_WIDTH, startX + cols);
+      const endY = Math.min(BOARD_START_Y + BOARD_HEIGHT, startY + rows);
+
+      for (let y = Math.max(BOARD_START_Y, startY); y < endY; y++) {
+        for (let x = Math.max(BOARD_START_X, startX); x < endX; x++) {
+          drawCell(x, y, size);
+        }
+      }
+
+      drawRegionOverlays(size);
+    }
+
+    function handlePrimaryAction(cellX, cellY) {
+      if (state.flagMode) {
+        toggleFlag(cellX, cellY);
+      } else if (state.opened.has(key(cellX, cellY))) {
+        if (state.quickExpand) expandAround(cellX, cellY);
+      } else {
+        revealCell(cellX, cellY, true);
+      }
+      maybeRunAutoSolve();
+      updateUI();
+      syncPanels();
+      draw();
+    }
+
+    canvas.addEventListener("pointerdown", (event) => {
+      canvas.setPointerCapture(event.pointerId);
+      state.dragging = true;
+      state.movedDuringDrag = false;
+      state.pointerId = event.pointerId;
+      state.pointerDownButton = event.button;
+      state.lastPointerX = event.clientX;
+      state.lastPointerY = event.clientY;
+      const rect = canvas.getBoundingClientRect();
+      state.pointerDownCell = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      if (!state.dragging || event.pointerId !== state.pointerId) return;
+      const dx = event.clientX - state.lastPointerX;
+      const dy = event.clientY - state.lastPointerY;
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+        state.movedDuringDrag = true;
+        const size = getTileSize();
+        state.cameraX -= dx / size;
+        state.cameraY -= dy / size;
+        clampCamera();
+        state.lastPointerX = event.clientX;
+        state.lastPointerY = event.clientY;
+        updateUI();
+        syncPanels();
+        draw();
+      }
+    });
+
+    canvas.addEventListener("pointerup", (event) => {
+      if (event.pointerId !== state.pointerId) return;
+      canvas.releasePointerCapture(event.pointerId);
+      state.dragging = false;
+      if (!state.movedDuringDrag && state.pointerDownCell && state.pointerDownButton === 0) {
+        handlePrimaryAction(state.pointerDownCell.x, state.pointerDownCell.y);
+      }
+      state.pointerId = null;
+      state.pointerDownCell = null;
+      state.pointerDownButton = 0;
+    });
+
+    canvas.addEventListener("pointercancel", () => {
+      state.dragging = false;
+      state.pointerId = null;
+      state.pointerDownCell = null;
+      state.pointerDownButton = 0;
+    });
+
+    canvas.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const cell = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
+      toggleFlag(cell.x, cell.y);
+      maybeRunAutoSolve();
+      updateUI();
+      syncPanels();
+      draw();
+    });
+
+    canvas.addEventListener("dblclick", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const cell = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
+      expandAround(cell.x, cell.y);
+      maybeRunAutoSolve();
+      updateUI();
+      syncPanels();
+      draw();
+    });
+
+    canvas.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const px = event.clientX - rect.left;
+      const py = event.clientY - rect.top;
+      const before = screenToWorld(px, py);
+      const delta = event.deltaY < 0 ? 1.1 : 0.9;
+      state.scale = Math.max(0.35, Math.min(1.9, state.scale * delta));
+      const size = getTileSize();
+      state.cameraX = before.x - px / size;
+      state.cameraY = before.y - py / size;
+      clampCamera();
+      updateUI();
+      syncPanels();
+      draw();
+    }, { passive: false });
+
+    document.getElementById("resetBtn").addEventListener("click", resetAtCenter);
+    document.getElementById("centerBtn").addEventListener("click", () => {
+      state.cameraX = BOARD_START_X;
+      state.cameraY = BOARD_START_Y;
+      clampCamera();
+      updateUI();
+      syncPanels();
+      draw();
+    });
+    document.getElementById("togglePanelBtn").addEventListener("click", () => {
+      ui.helpPanel.classList.toggle("hidden");
+    });
+
+    ui.exportBtn.addEventListener("click", () => {
+      const willOpen = ui.exportPanel.classList.contains("hidden");
+      ui.exportPanel.classList.toggle("hidden");
+      if (willOpen) {
+        refreshExportTextAsync();
+      }
+    });
+
+    ui.closeExportBtn.addEventListener("click", () => {
+      ui.exportPanel.classList.add("hidden");
+    });
+
+    ui.copyExportBtn.addEventListener("click", async () => {
+      refreshExportTextAsync();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      ui.exportText.select();
+      ui.exportText.setSelectionRange(0, ui.exportText.value.length);
+      try {
+        await navigator.clipboard.writeText(ui.exportText.value);
+        ui.copyExportBtn.textContent = "已複製";
+      } catch {
+        document.execCommand("copy");
+        ui.copyExportBtn.textContent = "已複製";
+      }
+      setTimeout(() => {
+        ui.copyExportBtn.textContent = "複製資訊";
+      }, 1200);
+    });
+
+    ui.exportText.addEventListener("focus", () => {
+      ui.exportText.select();
+      ui.exportText.setSelectionRange(0, ui.exportText.value.length);
+    });
+
+    ui.exportText.addEventListener("click", () => {
+      ui.exportText.select();
+      ui.exportText.setSelectionRange(0, ui.exportText.value.length);
+    });
+
+    ui.flagModeBtn.addEventListener("click", () => {
+      state.flagMode = !state.flagMode;
+      updateUI();
+      syncPanels();
+    });
+
+    ui.basicSolveBtn.addEventListener("click", () => {
+      state.basicSolve = !state.basicSolve;
+      if (state.basicSolve || state.advancedSolve) {
+        maybeRunAutoSolve();
+      } else {
+        state.lastSolverPasses = 0;
+      }
+      updateUI();
+      syncPanels();
+      draw();
+    });
+
+    ui.advancedSolveBtn.addEventListener("click", () => {
+      state.advancedSolve = !state.advancedSolve;
+      if (state.basicSolve || state.advancedSolve) {
+        maybeRunAutoSolve();
+      } else {
+        state.lastSolverPasses = 0;
+      }
+      updateUI();
+      syncPanels();
+      draw();
+    });
+
+    ui.revealNeighborsBtn.addEventListener("click", () => {
+      state.quickExpand = !state.quickExpand;
+      updateUI();
+      syncPanels();
+    });
+
+    ui.safeZoneBtn.addEventListener("click", () => {
+      state.safeZone = !state.safeZone;
+      if (!state.firstRevealDone) cache.clear();
+      updateUI();
+      syncPanels();
+      draw();
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+
+    updateUI();
+    refreshExportTextAsync();
+    resizeCanvas();
+  </script>
+</body>
+</html>
